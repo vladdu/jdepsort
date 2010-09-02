@@ -1,0 +1,14 @@
+
+h2. Overview
+
+"Uncle Bob":http://www.objectmentor.com/omTeam/martin_r.html argues in his "Clean code" that the methods in a Java class should be sorted like this:
+- public methods on top
+- then private methods the above are calling
+- then private methods the above are calling
+- and so on
+
+I couldn't find any tool to do this sorting (because doing it manually is too boring :-) so I will see if I can find time to implement it myself.
+
+If anyone reads this and knows of another tool (even commercial) that can spare me the effort, please send me a note! Thanks!
+
+
