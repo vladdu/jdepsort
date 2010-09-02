@@ -19,6 +19,7 @@ import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.jobs.ISchedulingRule;
 import org.eclipse.jdt.core.ICompilationUnit;
+import org.eclipse.jdt.core.IMethod;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.BodyDeclaration;
@@ -35,9 +36,9 @@ public class DepSortOperation implements IWorkspaceRunnable {
 	 */
 	public static class DefaultJavaElementComparator implements Comparator {
 
-		private final List fSortedMethods;
+		private final List<IMethod> fSortedMethods;
 
-		public DefaultJavaElementComparator(List sortedMethods) {
+		public DefaultJavaElementComparator(List<IMethod> sortedMethods) {
 			fSortedMethods = sortedMethods;
 		}
 
