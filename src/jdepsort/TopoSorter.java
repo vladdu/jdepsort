@@ -30,13 +30,16 @@ public class TopoSorter implements Comparator<MethodInfo> {
 	private final Collator fCollator;
 	private final MembersOrderPreferenceCache fMemberOrderCache;
 
-	public TopoSorter() {
+	private List<MethodInfo> methods;
+
+	public TopoSorter(List<MethodInfo> methods) {
 		fCollator = Collator.getInstance();
 		fMemberOrderCache = JavaPlugin.getDefault()
 				.getMemberOrderPreferenceCache();
+		this.methods = methods;
 	}
 
-	public static List<BodyDeclaration> getSortedMethods(
+	public static List<MethodDeclaration> getSortedMethods(
 			ICompilationUnit fCompilationUnit) {
 		CompilationUnit ast = createAst(fCompilationUnit);
 		return sortMethods(getMethodsWithDependencies(ast));
@@ -75,14 +78,15 @@ public class TopoSorter implements Comparator<MethodInfo> {
 			}
 		});
 
-		MethodInfo root = new MethodInfo(ast.getAST().newMethodDeclaration());
-		root.addInvocations(roots);
-		result.add(root);
+		// MethodInfo root = new
+		// MethodInfo(ast.getAST().newMethodDeclaration());
+		// root.addInvocations(roots);
+		// result.add(root);
 
 		if (DEBUG) {
 			System.out.println("All methods:");
-			for (int i = 0; i < result.size(); i++) {
-				System.out.println("> " + result.get(i));
+			for (MethodInfo m : result) {
+				System.out.println("> " + m);
 			}
 			System.out.println("------------");
 		}
@@ -90,13 +94,22 @@ public class TopoSorter implements Comparator<MethodInfo> {
 		return result;
 	}
 
-	private static List<BodyDeclaration> sortMethods(List<MethodInfo> methods) {
-		Collections.sort(methods, new TopoSorter());
+	private static List<MethodDeclaration> sortMethods(List<MethodInfo> methods) {
+		Collections.sort(methods, new TopoSorter(methods));
 
-		List<BodyDeclaration> result = new ArrayList<BodyDeclaration>();
+		List<MethodDeclaration> result = new ArrayList<MethodDeclaration>();
 		for (MethodInfo d : methods) {
 			result.add(d.getDeclaration());
 		}
+
+		if (DEBUG) {
+			System.out.println("Sorted:");
+			for (MethodDeclaration m : result) {
+				System.out.println("> " + m.getName());
+			}
+			System.out.println("------------");
+		}
+
 		return result;
 	}
 
@@ -104,46 +117,14 @@ public class TopoSorter implements Comparator<MethodInfo> {
 		MethodDeclaration method1 = m1.getDeclaration();
 		MethodDeclaration method2 = m2.getDeclaration();
 
-		if (fMemberOrderCache.isSortByVisibility()) {
-			int vis = fMemberOrderCache.getVisibilityIndex(method1
-					.getModifiers())
-					- fMemberOrderCache.getVisibilityIndex(method2
-							.getModifiers());
-			if (vis != 0) {
-				return vis;
-			}
+		int vis = fMemberOrderCache.getVisibilityIndex(method1.getModifiers())
+				- fMemberOrderCache.getVisibilityIndex(method2.getModifiers());
+		if (vis != 0) {
+			return vis;
 		}
 
-		String name1 = method1.getName().getIdentifier();
-		String name2 = method2.getName().getIdentifier();
+		// TODO here check dependencies
 
-		// method declarations (constructors) are sorted by name
-		int cmp = this.fCollator.compare(name1, name2);
-		if (cmp != 0) {
-			return cmp;
-		}
-
-		// if names equal, sort by parameter types
-		List parameters1 = method1.parameters();
-		List parameters2 = method2.parameters();
-		int length1 = parameters1.size();
-		int length2 = parameters2.size();
-
-		int len = Math.min(length1, length2);
-		for (int i = 0; i < len; i++) {
-			SingleVariableDeclaration param1 = (SingleVariableDeclaration) parameters1
-					.get(i);
-			SingleVariableDeclaration param2 = (SingleVariableDeclaration) parameters2
-					.get(i);
-			cmp = this.fCollator.compare(buildSignature(param1.getType()),
-					buildSignature(param2.getType()));
-			if (cmp != 0) {
-				return cmp;
-			}
-		}
-		if (length1 != length2) {
-			return length1 - length2;
-		}
 		return preserveRelativeOrder(method1, method2);
 	}
 
@@ -154,10 +135,6 @@ public class TopoSorter implements Comparator<MethodInfo> {
 			return cmp;
 		}
 		return preserveRelativeOrder(bodyDeclaration1, bodyDeclaration2);
-	}
-
-	private String buildSignature(Type type) {
-		return ASTNodes.asString(type);
 	}
 
 	public static int preserveRelativeOrder(BodyDeclaration bodyDeclaration1,
