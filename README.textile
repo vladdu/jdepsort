@@ -1,7 +1,7 @@
 
 h2. Overview
 
-"Uncle Bob":http://www.objectmentor.com/omTeam/martin_r.html argues in his "Clean code" that the methods in a Java class should be sorted like this:
+"Robert 'Uncle Bob' Martin":http://www.objectmentor.com/omTeam/martin_r.html argues in his "Clean code" that the methods in a Java class should be sorted like this:
 - public methods on top
 - then private methods the above are calling
 - then private methods the above are calling

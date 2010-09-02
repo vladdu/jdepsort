@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<fragment>
+   <extension
+         point="org.eclipse.ui.actionSets">
+      <actionSet
+            id="jdepsort.actionSet"
+            label="Sample Action Set"
+            visible="true">
+         <action
+               class="jdepsort.DepSortActionDelegate"
+               id="jdepsort.DepSortAction"
+               label="Sort methods topologically"
+               menubarPath="org.eclipse.jdt.ui.source.menu/importGroup">
+         </action>
+      </actionSet>
+   </extension>
+</fragment>

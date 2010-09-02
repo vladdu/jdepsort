@@ -1,12 +1,10 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: Java method dependency sorter
-Bundle-SymbolicName: jdepsort
+Bundle-Name: Topoligical sorting of methods
+Bundle-SymbolicName: jdepsort;singleton:=true
 Bundle-Version: 0.1.0.qualifier
-Bundle-Activator: jdepsort.Activator
-Bundle-Vendor: Vlad Dumitrescu
-Require-Bundle: org.eclipse.ui,
- org.eclipse.core.runtime,
- org.eclipse.jdt.core;bundle-version="3.5.2"
+Fragment-Host: org.eclipse.jdt.ui;bundle-version="3.5.2"
 Bundle-RequiredExecutionEnvironment: J2SE-1.5
-Bundle-ActivationPolicy: lazy
+Require-Bundle: org.eclipse.ui
+Export-Package: jdepsort;x-internal:=true
+Bundle-Vendor: Vlad Dumitrescu
