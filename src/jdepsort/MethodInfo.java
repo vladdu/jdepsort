@@ -6,28 +6,29 @@ import java.util.List;
 
 import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.MethodInvocation;
+import org.eclipse.jdt.core.dom.SimpleName;
 
 public final class MethodInfo {
 
 	final private MethodDeclaration declaration;
-	final private List<MethodInvocation> invocations;
+	final private List<SimpleName> invocations;
 
 	public MethodInfo(MethodDeclaration decl) {
 		declaration = decl;
-		invocations = new ArrayList<MethodInvocation>();
+		invocations = new ArrayList<SimpleName>();
 	}
 
 	public MethodDeclaration getDeclaration() {
 		return declaration;
 	}
 
-	public List<MethodInvocation> getInvocations() {
+	public List<SimpleName> getInvocations() {
 		return Collections.unmodifiableList(invocations);
 	}
 
 	public void addInvocation(MethodInvocation invocation) {
 		if (!invocations.contains(invocation) && isLocalInvocation(invocation)) {
-			invocations.add(invocation);
+			invocations.add(invocation.getName());
 		}
 	}
 
@@ -45,10 +46,14 @@ public final class MethodInfo {
 	private Object printInvocations() {
 		StringBuilder b = new StringBuilder();
 		b.append("[");
-		for (MethodInvocation i : invocations) {
-			b.append(i.getName()).append(", ");
+		for (SimpleName i : invocations) {
+			b.append(i).append(", ");
 		}
 		b.append("]");
 		return b.toString();
+	}
+
+	public void addInvocations(List<SimpleName> roots) {
+		invocations.addAll(roots);
 	}
 }

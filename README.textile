@@ -11,4 +11,8 @@ I couldn't find any tool to do this sorting (because doing it manually is too bo
 
 If anyone reads this and knows of another tool (even commercial) that can spare me the effort, please send me a note! Thanks!
 
+h2. Requirements
+
+- Java 1.5
+- Eclipse 3.5
 

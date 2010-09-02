@@ -1,6 +1,8 @@
 package jdepsort;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import org.eclipse.core.runtime.NullProgressMonitor;
@@ -10,6 +12,8 @@ import org.eclipse.jdt.core.dom.BodyDeclaration;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.MethodInvocation;
+import org.eclipse.jdt.core.dom.Modifier;
+import org.eclipse.jdt.core.dom.SimpleName;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.Type;
 import org.eclipse.jdt.core.util.CompilationUnitSorter;
@@ -20,7 +24,7 @@ import org.eclipse.jdt.ui.SharedASTProvider;
 
 import com.ibm.icu.text.Collator;
 
-public class TopoSorter {
+public class TopoSorter implements Comparator<MethodInfo> {
 	private final static boolean DEBUG = true;
 
 	private final Collator fCollator;
@@ -39,8 +43,9 @@ public class TopoSorter {
 	}
 
 	private static List<MethodInfo> getMethodsWithDependencies(
-			CompilationUnit ast) {
+			final CompilationUnit ast) {
 		final List<MethodInfo> result = new ArrayList<MethodInfo>();
+		final List<SimpleName> roots = new ArrayList<SimpleName>();
 
 		ast.accept(new ASTVisitor() {
 			MethodInfo crt = null;
@@ -49,6 +54,9 @@ public class TopoSorter {
 			public boolean visit(MethodDeclaration node) {
 				crt = new MethodInfo(node);
 				result.add(crt);
+				if ((node.getModifiers() & Modifier.PUBLIC) == Modifier.PUBLIC) {
+					roots.add(node.getName());
+				}
 				return super.visit(node);
 			}
 
@@ -60,11 +68,16 @@ public class TopoSorter {
 
 			@Override
 			public boolean visit(MethodInvocation node) {
-				System.out.println("DEP:: " + crt + " -> " + node + "\n");
-				crt.addInvocation(node);
+				if (crt != null) {
+					crt.addInvocation(node);
+				}
 				return super.visit(node);
 			}
 		});
+
+		MethodInfo root = new MethodInfo(ast.getAST().newMethodDeclaration());
+		root.addInvocations(roots);
+		result.add(root);
 
 		if (DEBUG) {
 			System.out.println("All methods:");
@@ -78,6 +91,8 @@ public class TopoSorter {
 	}
 
 	private static List<BodyDeclaration> sortMethods(List<MethodInfo> methods) {
+		Collections.sort(methods, new TopoSorter());
+
 		List<BodyDeclaration> result = new ArrayList<BodyDeclaration>();
 		for (MethodInfo d : methods) {
 			result.add(d.getDeclaration());
@@ -85,57 +100,51 @@ public class TopoSorter {
 		return result;
 	}
 
-	private int compare(MethodDeclaration bodyDeclaration1,
-			MethodDeclaration bodyDeclaration2) {
+	public int compare(MethodInfo m1, MethodInfo m2) {
+		MethodDeclaration method1 = m1.getDeclaration();
+		MethodDeclaration method2 = m2.getDeclaration();
 
-		if (bodyDeclaration1 instanceof MethodDeclaration
-				&& bodyDeclaration2 instanceof MethodDeclaration) {
-			MethodDeclaration method1 = (MethodDeclaration) bodyDeclaration1;
-			MethodDeclaration method2 = (MethodDeclaration) bodyDeclaration2;
-
-			if (fMemberOrderCache.isSortByVisibility()) {
-				int vis = fMemberOrderCache.getVisibilityIndex(method1
-						.getModifiers())
-						- fMemberOrderCache.getVisibilityIndex(method2
-								.getModifiers());
-				if (vis != 0) {
-					return vis;
-				}
+		if (fMemberOrderCache.isSortByVisibility()) {
+			int vis = fMemberOrderCache.getVisibilityIndex(method1
+					.getModifiers())
+					- fMemberOrderCache.getVisibilityIndex(method2
+							.getModifiers());
+			if (vis != 0) {
+				return vis;
 			}
+		}
 
-			String name1 = method1.getName().getIdentifier();
-			String name2 = method2.getName().getIdentifier();
+		String name1 = method1.getName().getIdentifier();
+		String name2 = method2.getName().getIdentifier();
 
-			// method declarations (constructors) are sorted by name
-			int cmp = this.fCollator.compare(name1, name2);
+		// method declarations (constructors) are sorted by name
+		int cmp = this.fCollator.compare(name1, name2);
+		if (cmp != 0) {
+			return cmp;
+		}
+
+		// if names equal, sort by parameter types
+		List parameters1 = method1.parameters();
+		List parameters2 = method2.parameters();
+		int length1 = parameters1.size();
+		int length2 = parameters2.size();
+
+		int len = Math.min(length1, length2);
+		for (int i = 0; i < len; i++) {
+			SingleVariableDeclaration param1 = (SingleVariableDeclaration) parameters1
+					.get(i);
+			SingleVariableDeclaration param2 = (SingleVariableDeclaration) parameters2
+					.get(i);
+			cmp = this.fCollator.compare(buildSignature(param1.getType()),
+					buildSignature(param2.getType()));
 			if (cmp != 0) {
 				return cmp;
 			}
-
-			// if names equal, sort by parameter types
-			List parameters1 = method1.parameters();
-			List parameters2 = method2.parameters();
-			int length1 = parameters1.size();
-			int length2 = parameters2.size();
-
-			int len = Math.min(length1, length2);
-			for (int i = 0; i < len; i++) {
-				SingleVariableDeclaration param1 = (SingleVariableDeclaration) parameters1
-						.get(i);
-				SingleVariableDeclaration param2 = (SingleVariableDeclaration) parameters2
-						.get(i);
-				cmp = this.fCollator.compare(buildSignature(param1.getType()),
-						buildSignature(param2.getType()));
-				if (cmp != 0) {
-					return cmp;
-				}
-			}
-			if (length1 != length2) {
-				return length1 - length2;
-			}
-			return preserveRelativeOrder(bodyDeclaration1, bodyDeclaration2);
 		}
-		return preserveRelativeOrder(bodyDeclaration1, bodyDeclaration2);
+		if (length1 != length2) {
+			return length1 - length2;
+		}
+		return preserveRelativeOrder(method1, method2);
 	}
 
 	private int compareNames(BodyDeclaration bodyDeclaration1,
