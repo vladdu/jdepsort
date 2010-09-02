@@ -1,10 +1,10 @@
 Manifest-Version: 1.0
 Bundle-ManifestVersion: 2
-Bundle-Name: Topoligical sorting of methods
+Bundle-Name: Topological method sorter
 Bundle-SymbolicName: jdepsort;singleton:=true
 Bundle-Version: 0.1.0.qualifier
 Fragment-Host: org.eclipse.jdt.ui;bundle-version="3.5.2"
-Bundle-RequiredExecutionEnvironment: J2SE-1.5
+Bundle-RequiredExecutionEnvironment: J2SE-1.4
 Require-Bundle: org.eclipse.ui
 Export-Package: jdepsort;x-internal:=true
 Bundle-Vendor: Vlad Dumitrescu

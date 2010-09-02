@@ -13,104 +13,43 @@ package jdepsort;
 import java.util.Comparator;
 import java.util.List;
 
-import com.ibm.icu.text.Collator;
-
+import org.eclipse.core.resources.IWorkspaceRunnable;
+import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.IProgressMonitor;
 import org.eclipse.core.runtime.jobs.ISchedulingRule;
-
-import org.eclipse.core.resources.IWorkspaceRunnable;
-import org.eclipse.core.resources.ResourcesPlugin;
-
 import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.AbstractTypeDeclaration;
-import org.eclipse.jdt.core.dom.AnnotationTypeMemberDeclaration;
 import org.eclipse.jdt.core.dom.BodyDeclaration;
-import org.eclipse.jdt.core.dom.EnumConstantDeclaration;
-import org.eclipse.jdt.core.dom.FieldDeclaration;
-import org.eclipse.jdt.core.dom.Initializer;
 import org.eclipse.jdt.core.dom.MethodDeclaration;
-import org.eclipse.jdt.core.dom.Modifier;
 import org.eclipse.jdt.core.dom.SingleVariableDeclaration;
 import org.eclipse.jdt.core.dom.Type;
-import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
 import org.eclipse.jdt.core.util.CompilationUnitSorter;
-
 import org.eclipse.jdt.internal.corext.dom.ASTNodes;
-import org.eclipse.jdt.internal.corext.util.JdtFlags;
-
 import org.eclipse.jdt.internal.ui.JavaPlugin;
 import org.eclipse.jdt.internal.ui.preferences.MembersOrderPreferenceCache;
 
+import com.ibm.icu.text.Collator;
+
 /**
- * Orders members is a compilation unit. A working copy must be passed.
+ * Orders topologically methods in a compilation unit. A working copy must be
+ * passed.
  */
-@SuppressWarnings("restriction")
 public class DepSortOperation implements IWorkspaceRunnable {
 
 	/**
 	 * Default comparator for body declarations.
 	 */
-	public static class DefaultJavaElementComparator implements Comparator<BodyDeclaration> {
+	public static class DefaultJavaElementComparator implements Comparator {
 
 		private final Collator fCollator;
 		private final MembersOrderPreferenceCache fMemberOrderCache;
-		private final boolean fDoNotSortFields;
 
-		public DefaultJavaElementComparator(boolean doNotSortFields) {
-			fDoNotSortFields = doNotSortFields;
+		public DefaultJavaElementComparator() {
 			fCollator = Collator.getInstance();
 			fMemberOrderCache = JavaPlugin.getDefault()
 					.getMemberOrderPreferenceCache();
-		}
-
-		private int category(BodyDeclaration bodyDeclaration) {
-			switch (bodyDeclaration.getNodeType()) {
-			case ASTNode.METHOD_DECLARATION: {
-				MethodDeclaration method = (MethodDeclaration) bodyDeclaration;
-				if (method.isConstructor()) {
-					return getMemberCategory(MembersOrderPreferenceCache.CONSTRUCTORS_INDEX);
-				}
-				int flags = method.getModifiers();
-				if (Modifier.isStatic(flags))
-					return getMemberCategory(MembersOrderPreferenceCache.STATIC_METHODS_INDEX);
-				else
-					return getMemberCategory(MembersOrderPreferenceCache.METHOD_INDEX);
-			}
-			case ASTNode.FIELD_DECLARATION: {
-				int flags = ((FieldDeclaration) bodyDeclaration).getModifiers();
-				if (Modifier.isStatic(flags))
-					return getMemberCategory(MembersOrderPreferenceCache.STATIC_FIELDS_INDEX);
-				else
-					return getMemberCategory(MembersOrderPreferenceCache.FIELDS_INDEX);
-			}
-			case ASTNode.INITIALIZER: {
-				int flags = ((Initializer) bodyDeclaration).getModifiers();
-				if (Modifier.isStatic(flags))
-					return getMemberCategory(MembersOrderPreferenceCache.STATIC_INIT_INDEX);
-				else
-					return getMemberCategory(MembersOrderPreferenceCache.INIT_INDEX);
-			}
-			case ASTNode.TYPE_DECLARATION:
-			case ASTNode.ENUM_DECLARATION:
-			case ASTNode.ANNOTATION_TYPE_DECLARATION:
-				return getMemberCategory(MembersOrderPreferenceCache.TYPE_INDEX);
-			case ASTNode.ENUM_CONSTANT_DECLARATION:
-				return getMemberCategory(MembersOrderPreferenceCache.ENUM_CONSTANTS_INDEX);
-			case ASTNode.ANNOTATION_TYPE_MEMBER_DECLARATION:
-				return getMemberCategory(MembersOrderPreferenceCache.METHOD_INDEX); // reusing
-																					// the
-																					// method
-																					// index
-
-			}
-			return 0; // should never happen
-		}
-
-		private int getMemberCategory(int kind) {
-			return fMemberOrderCache.getCategoryIndex(kind);
 		}
 
 		/**
@@ -123,152 +62,64 @@ public class DepSortOperation implements IWorkspaceRunnable {
 		 *      java.util.Comparator, int,
 		 *      org.eclipse.core.runtime.IProgressMonitor)
 		 */
-		public int compare(BodyDeclaration bodyDeclaration1, BodyDeclaration bodyDeclaration2) {
-			if (fDoNotSortFields && isSortPreserved(bodyDeclaration1)
-					&& isSortPreserved(bodyDeclaration2)) {
+		public int compare(Object o1, Object o2) {
+			BodyDeclaration bodyDeclaration1 = (BodyDeclaration) o1;
+			BodyDeclaration bodyDeclaration2 = (BodyDeclaration) o2;
+
+			if (bodyDeclaration1.getNodeType() == ASTNode.METHOD_DECLARATION) {
+				return compareMethods(bodyDeclaration1, bodyDeclaration2);
+			} else {
 				return preserveRelativeOrder(bodyDeclaration1, bodyDeclaration2);
 			}
+		}
 
-			int cat1 = category(bodyDeclaration1);
-			int cat2 = category(bodyDeclaration2);
-
-			if (cat1 != cat2) {
-				return cat1 - cat2;
-			}
+		private int compareMethods(BodyDeclaration bodyDeclaration1,
+				BodyDeclaration bodyDeclaration2) {
+			MethodDeclaration method1 = (MethodDeclaration) bodyDeclaration1;
+			MethodDeclaration method2 = (MethodDeclaration) bodyDeclaration2;
 
 			if (fMemberOrderCache.isSortByVisibility()) {
-				int flags1 = JdtFlags.getVisibilityCode(bodyDeclaration1);
-				int flags2 = JdtFlags.getVisibilityCode(bodyDeclaration2);
-				int vis = fMemberOrderCache.getVisibilityIndex(flags1)
-						- fMemberOrderCache.getVisibilityIndex(flags2);
+				int vis = fMemberOrderCache.getVisibilityIndex(method1
+						.getModifiers())
+						- fMemberOrderCache.getVisibilityIndex(method2
+								.getModifiers());
 				if (vis != 0) {
 					return vis;
 				}
 			}
 
-			switch (bodyDeclaration1.getNodeType()) {
-			case ASTNode.METHOD_DECLARATION: {
-				MethodDeclaration method1 = (MethodDeclaration) bodyDeclaration1;
-				MethodDeclaration method2 = (MethodDeclaration) bodyDeclaration2;
+			String name1 = method1.getName().getIdentifier();
+			String name2 = method2.getName().getIdentifier();
 
-				if (fMemberOrderCache.isSortByVisibility()) {
-					int vis = fMemberOrderCache.getVisibilityIndex(method1
-							.getModifiers())
-							- fMemberOrderCache.getVisibilityIndex(method2
-									.getModifiers());
-					if (vis != 0) {
-						return vis;
-					}
-				}
+			// method declarations (constructors) are sorted by name
+			int cmp = this.fCollator.compare(name1, name2);
+			if (cmp != 0) {
+				return cmp;
+			}
 
-				String name1 = method1.getName().getIdentifier();
-				String name2 = method2.getName().getIdentifier();
+			// if names equal, sort by parameter types
+			List parameters1 = method1.parameters();
+			List parameters2 = method2.parameters();
+			int length1 = parameters1.size();
+			int length2 = parameters2.size();
 
-				// method declarations (constructors) are sorted by name
-				int cmp = this.fCollator.compare(name1, name2);
+			int len = Math.min(length1, length2);
+			for (int i = 0; i < len; i++) {
+				SingleVariableDeclaration param1 = (SingleVariableDeclaration) parameters1
+						.get(i);
+				SingleVariableDeclaration param2 = (SingleVariableDeclaration) parameters2
+						.get(i);
+				cmp = this.fCollator.compare(
+						buildSignature(param1.getType()),
+						buildSignature(param2.getType()));
 				if (cmp != 0) {
 					return cmp;
 				}
-
-				// if names equal, sort by parameter types
-				List parameters1 = method1.parameters();
-				List parameters2 = method2.parameters();
-				int length1 = parameters1.size();
-				int length2 = parameters2.size();
-
-				int len = Math.min(length1, length2);
-				for (int i = 0; i < len; i++) {
-					SingleVariableDeclaration param1 = (SingleVariableDeclaration) parameters1
-							.get(i);
-					SingleVariableDeclaration param2 = (SingleVariableDeclaration) parameters2
-							.get(i);
-					cmp = this.fCollator.compare(
-							buildSignature(param1.getType()),
-							buildSignature(param2.getType()));
-					if (cmp != 0) {
-						return cmp;
-					}
-				}
-				if (length1 != length2) {
-					return length1 - length2;
-				}
-				return preserveRelativeOrder(bodyDeclaration1, bodyDeclaration2);
 			}
-			case ASTNode.FIELD_DECLARATION: {
-				if (!fDoNotSortFields) {
-					FieldDeclaration field1 = (FieldDeclaration) bodyDeclaration1;
-					FieldDeclaration field2 = (FieldDeclaration) bodyDeclaration2;
-
-					String name1 = ((VariableDeclarationFragment) field1
-							.fragments().get(0)).getName().getIdentifier();
-					String name2 = ((VariableDeclarationFragment) field2
-							.fragments().get(0)).getName().getIdentifier();
-
-					// field declarations are sorted by name
-					return compareNames(bodyDeclaration1, bodyDeclaration2,
-							name1, name2);
-				} else {
-					return preserveRelativeOrder(bodyDeclaration1,
-							bodyDeclaration2);
-				}
+			if (length1 != length2) {
+				return length1 - length2;
 			}
-			case ASTNode.INITIALIZER: {
-				// preserve relative order
-				return preserveRelativeOrder(bodyDeclaration1, bodyDeclaration2);
-			}
-			case ASTNode.TYPE_DECLARATION:
-			case ASTNode.ENUM_DECLARATION:
-			case ASTNode.ANNOTATION_TYPE_DECLARATION: {
-				AbstractTypeDeclaration type1 = (AbstractTypeDeclaration) bodyDeclaration1;
-				AbstractTypeDeclaration type2 = (AbstractTypeDeclaration) bodyDeclaration2;
-
-				String name1 = type1.getName().getIdentifier();
-				String name2 = type2.getName().getIdentifier();
-
-				// typedeclarations are sorted by name
-				return compareNames(bodyDeclaration1, bodyDeclaration2, name1,
-						name2);
-			}
-			case ASTNode.ENUM_CONSTANT_DECLARATION: {
-				if (!fDoNotSortFields) {
-					EnumConstantDeclaration decl1 = (EnumConstantDeclaration) bodyDeclaration1;
-					EnumConstantDeclaration decl2 = (EnumConstantDeclaration) bodyDeclaration2;
-
-					String name1 = decl1.getName().getIdentifier();
-					String name2 = decl2.getName().getIdentifier();
-
-					// enum constants declarations are sorted by name
-					return compareNames(bodyDeclaration1, bodyDeclaration2,
-							name1, name2);
-				} else {
-					return preserveRelativeOrder(bodyDeclaration1,
-							bodyDeclaration2);
-				}
-			}
-			case ASTNode.ANNOTATION_TYPE_MEMBER_DECLARATION: {
-				AnnotationTypeMemberDeclaration decl1 = (AnnotationTypeMemberDeclaration) bodyDeclaration1;
-				AnnotationTypeMemberDeclaration decl2 = (AnnotationTypeMemberDeclaration) bodyDeclaration2;
-
-				String name1 = decl1.getName().getIdentifier();
-				String name2 = decl2.getName().getIdentifier();
-
-				// enum constants declarations are sorted by name
-				return compareNames(bodyDeclaration1, bodyDeclaration2, name1,
-						name2);
-			}
-			}
-			return 0;
-		}
-
-		private boolean isSortPreserved(BodyDeclaration bodyDeclaration) {
-			switch (bodyDeclaration.getNodeType()) {
-			case ASTNode.FIELD_DECLARATION:
-			case ASTNode.ENUM_CONSTANT_DECLARATION:
-			case ASTNode.INITIALIZER:
-				return true;
-			default:
-				return false;
-			}
+			return preserveRelativeOrder(bodyDeclaration1, bodyDeclaration2);
 		}
 
 		private int preserveRelativeOrder(BodyDeclaration bodyDeclaration1,
@@ -298,7 +149,6 @@ public class DepSortOperation implements IWorkspaceRunnable {
 
 	private ICompilationUnit fCompilationUnit;
 	private int[] fPositions;
-	private final boolean fDoNotSortFields;
 
 	/**
 	 * Creates the operation.
@@ -308,14 +158,10 @@ public class DepSortOperation implements IWorkspaceRunnable {
 	 * @param positions
 	 *            Positions to track or <code>null</code> if no positions should
 	 *            be tracked.
-	 * @param doNotSortFields
-	 *            no fields and enum constants are sorted if true
 	 */
-	public DepSortOperation(ICompilationUnit cu, int[] positions,
-			boolean doNotSortFields) {
+	public DepSortOperation(ICompilationUnit cu, int[] positions) {
 		fCompilationUnit = cu;
 		fPositions = positions;
-		fDoNotSortFields = doNotSortFields;
 	}
 
 	/**
@@ -336,7 +182,7 @@ public class DepSortOperation implements IWorkspaceRunnable {
 	 */
 	public void run(IProgressMonitor monitor) throws CoreException {
 		CompilationUnitSorter.sort(AST.JLS3, fCompilationUnit, fPositions,
-				new DefaultJavaElementComparator(fDoNotSortFields), 0, monitor);
+				new DefaultJavaElementComparator(), 0, monitor);
 	}
 
 	/**

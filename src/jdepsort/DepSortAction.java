@@ -24,7 +24,6 @@ import org.eclipse.jdt.internal.ui.actions.ActionUtil;
 import org.eclipse.jdt.internal.ui.actions.SelectionConverter;
 import org.eclipse.jdt.internal.ui.actions.WorkbenchRunnableAdapter;
 import org.eclipse.jdt.internal.ui.dialogs.OptionalMessageDialog;
-import org.eclipse.jdt.internal.ui.dialogs.SortMembersMessageDialog;
 import org.eclipse.jdt.internal.ui.javaeditor.CompilationUnitEditor;
 import org.eclipse.jdt.internal.ui.javaeditor.IJavaAnnotation;
 import org.eclipse.jdt.internal.ui.util.BusyIndicatorRunnableContext;
@@ -62,7 +61,6 @@ import org.eclipse.ui.PlatformUI;
  * 
  * @noextend This class is not intended to be subclassed by clients.
  */
-@SuppressWarnings("restriction")
 public class DepSortAction extends SelectionDispatchAction {
 
 	private CompilationUnitEditor fEditor;
@@ -136,12 +134,6 @@ public class DepSortAction extends SelectionDispatchAction {
 				return;
 			}
 
-			SortMembersMessageDialog dialog = new SortMembersMessageDialog(
-					getShell());
-			if (dialog.open() != Window.OK) {
-				return;
-			}
-
 			if (!ElementValidator
 					.check(cu, getShell(), getDialogTitle(), false)) {
 				return;
@@ -150,7 +142,7 @@ public class DepSortAction extends SelectionDispatchAction {
 			// open an editor and work on a working copy
 			IEditorPart editor = JavaUI.openInEditor(cu);
 			if (editor != null) {
-				run(shell, cu, editor, dialog.isNotSortingFieldsEnabled());
+				run(shell, cu, editor);
 			}
 		} catch (CoreException e) {
 			ExceptionHandler.handle(e, shell, getDialogTitle(), null);
@@ -190,17 +182,11 @@ public class DepSortAction extends SelectionDispatchAction {
 			if (!ActionUtil.isEditable(fEditor)) {
 				return;
 			}
-			SortMembersMessageDialog dialog = new SortMembersMessageDialog(
-					getShell());
-			if (dialog.open() != Window.OK) {
-				return;
-			}
 			if (!ElementValidator.check(input, getShell(), getDialogTitle(),
 					true)) {
 				return;
 			}
-			run(shell, (ICompilationUnit) input, fEditor,
-					dialog.isNotSortingFieldsEnabled());
+			run(shell, (ICompilationUnit) input, fEditor);
 		} else {
 			MessageDialog.openInformation(shell, getDialogTitle(),
 					ActionMessages.SortMembersAction_not_applicable);
@@ -226,8 +212,7 @@ public class DepSortAction extends SelectionDispatchAction {
 		return false;
 	}
 
-	private void run(Shell shell, ICompilationUnit cu, IEditorPart editor,
-			boolean isNotSortFields) {
+	private void run(Shell shell, ICompilationUnit cu, IEditorPart editor) {
 		if (containsRelevantMarkers(editor)) {
 			int returnCode = OptionalMessageDialog.open(ID_OPTIONAL_DIALOG,
 					getShell(), getDialogTitle(), null,
@@ -240,8 +225,7 @@ public class DepSortAction extends SelectionDispatchAction {
 				return;
 		}
 
-		DepSortOperation op = new DepSortOperation(cu, null,
-				isNotSortFields);
+		DepSortOperation op = new DepSortOperation(cu, null);
 		try {
 			BusyIndicatorRunnableContext context = new BusyIndicatorRunnableContext();
 			PlatformUI
